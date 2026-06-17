@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+<script crossorigin src="https://unpkg.com/htm@3/dist/htm.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body { background: #0d0d0d; overflow-x: hidden; padding-top: env(safe-area-inset-top); }
@@ -22,7 +22,8 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets='[["react",{"runtime":"classic"}]]'>
+<script>
+var html = htm.bind(React.createElement);
 var useState = React.useState;
 var useMemo = React.useMemo;
 var useRef = React.useRef;
@@ -46,7 +47,7 @@ function projectPortfolio(startBalance, monthlyContrib, annualReturn, years, con
         fourPctIncome: Math.round(fourPctIncome),
         fourPctMonthly: Math.round(fourPctIncome / 12),
         totalContributed: Math.round(totalContributed + startBalance),
-        gains: Math.round(balance - totalContributed - startBalance),
+        gains: Math.round(balance - totalContributed - startBalance)
       });
     }
     if (m < totalMonths) {
@@ -64,10 +65,10 @@ function formatDollar(v) {
 }
 
 var baseScenarios = [
-  { id: "full", labelFn: function(y) { return "$8k/mo \u00b7 " + y + "yr"; }, monthly: 8000, contribYears: null, color: "#2563eb" },
-  { id: "three", labelFn: function() { return "$8k/mo \u00b7 3yr stop"; }, monthly: 8000, contribYears: 3, color: "#7c3aed" },
-  { id: "half", labelFn: function(y) { return "$4k/mo \u00b7 " + y + "yr"; }, monthly: 4000, contribYears: null, color: "#0891b2" },
-  { id: "zero", labelFn: function() { return "$0/mo \u00b7 let it ride"; }, monthly: 0, contribYears: null, color: "#dc2626" },
+  { id: "full", labelFn: function(y) { return "$8k/mo \xb7 " + y + "yr"; }, monthly: 8000, contribYears: null, color: "#2563eb" },
+  { id: "three", labelFn: function() { return "$8k/mo \xb7 3yr stop"; }, monthly: 8000, contribYears: 3, color: "#7c3aed" },
+  { id: "half", labelFn: function(y) { return "$4k/mo \xb7 " + y + "yr"; }, monthly: 4000, contribYears: null, color: "#0891b2" },
+  { id: "zero", labelFn: function() { return "$0/mo \xb7 let it ride"; }, monthly: 0, contribYears: null, color: "#dc2626" }
 ];
 
 function SVGChart(props) {
@@ -123,9 +124,7 @@ function SVGChart(props) {
   for (var j = 0; j <= years; j += xStep) xTicks.push(j);
 
   var show1M = maxVal > 1000000;
-  var hoverState = useState(null);
-  var hover = hoverState[0];
-  var setHover = hoverState[1];
+  var hs = useState(null); var hover = hs[0]; var setHover = hs[1];
   var svgRef = useRef(null);
 
   function handleMove(e) {
@@ -140,68 +139,78 @@ function SVGChart(props) {
     if (pt) setHover(pt);
   }
 
-  return (
-    <div style={{ position: "relative" }}>
-      <svg ref={svgRef} viewBox={"0 0 " + W + " " + H} style={{ width: "100%", height: "auto", display: "block" }}
-        onMouseMove={handleMove} onTouchMove={handleMove}
-        onMouseLeave={function() { setHover(null); }} onTouchEnd={function() { setHover(null); }}>
+  var gridLines = yTicks.map(function(v, idx) {
+    return html`<line key=${"g" + idx} x1=${pad.left} x2=${W - pad.right} y1=${yPos(v)} y2=${yPos(v)} stroke="#1e1e1e" stroke-width="1" />`;
+  });
 
-        {yTicks.map(function(v, idx) {
-          return <line key={"g" + idx} x1={pad.left} x2={W - pad.right} y1={yPos(v)} y2={yPos(v)} stroke="#1e1e1e" strokeWidth="1" />;
-        })}
+  var refLine = show1M ? html`<line x1=${pad.left} x2=${W - pad.right} y1=${yPos(1000000)} y2=${yPos(1000000)} stroke="#333" stroke-width="1" stroke-dasharray="6 4" />` : null;
+  var refLabel = show1M ? html`<text x=${W - pad.right - 4} y=${yPos(1000000) - 6} fill="#444" font-size="10" text-anchor="end" font-family="'DM Mono', monospace">$1M</text>` : null;
 
-        {show1M && <line x1={pad.left} x2={W - pad.right} y1={yPos(1000000)} y2={yPos(1000000)} stroke="#333" strokeWidth="1" strokeDasharray="6 4" />}
-        {show1M && <text x={W - pad.right - 4} y={yPos(1000000) - 6} fill="#444" fontSize="10" textAnchor="end" fontFamily="'DM Mono', monospace">$1M</text>}
+  var areaFills = scenarios.filter(function(s) { return activeScenarios.has(s.id); }).map(function(s) {
+    return html`<path key=${s.id + "a"} d=${makeArea(s.id)} fill=${s.color} opacity="0.08" />`;
+  });
 
-        {scenarios.filter(function(s) { return activeScenarios.has(s.id); }).map(function(s) {
-          return <path key={s.id + "a"} d={makeArea(s.id)} fill={s.color} opacity="0.08" />;
-        })}
-        {showCustom && <path d={makeArea("custom")} fill="#f59e0b" opacity="0.08" />}
+  var customArea = showCustom ? html`<path d=${makeArea("custom")} fill="#f59e0b" opacity="0.08" />` : null;
 
-        {scenarios.filter(function(s) { return activeScenarios.has(s.id); }).map(function(s) {
-          var sel = selectedDetail === s.id && !showCustom;
-          return <path key={s.id} d={makePath(s.id)} fill="none" stroke={s.color} strokeWidth={sel ? 2.5 : 1.5} opacity={sel || showCustom ? 1 : 0.6} />;
-        })}
-        {showCustom && <path d={makePath("custom")} fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeDasharray="6 3" />}
+  var lines = scenarios.filter(function(s) { return activeScenarios.has(s.id); }).map(function(s) {
+    var sel = selectedDetail === s.id && !showCustom;
+    return html`<path key=${s.id} d=${makePath(s.id)} fill="none" stroke=${s.color} stroke-width=${sel ? 2.5 : 1.5} opacity=${sel || showCustom ? 1 : 0.6} />`;
+  });
 
-        {yTicks.map(function(v, idx) {
-          return <text key={"y" + idx} x={pad.left - 8} y={yPos(v) + 4} fill="#555" fontSize="10" textAnchor="end" fontFamily="'DM Mono', monospace">{formatDollar(Math.round(v))}</text>;
-        })}
-        {xTicks.map(function(yr) {
-          return <text key={"x" + yr} x={xPos(yr)} y={H - 6} fill="#555" fontSize="10" textAnchor="middle" fontFamily="'DM Mono', monospace">{"Yr " + yr}</text>;
-        })}
+  var customLine = showCustom ? html`<path d=${makePath("custom")} fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="6 3" />` : null;
 
-        {hover && <line x1={xPos(hover.year)} x2={xPos(hover.year)} y1={pad.top} y2={pad.top + plotH} stroke="#555" strokeWidth="1" strokeDasharray="3 3" />}
-      </svg>
+  var yLabels = yTicks.map(function(v, idx) {
+    return html`<text key=${"y" + idx} x=${pad.left - 8} y=${yPos(v) + 4} fill="#555" font-size="10" text-anchor="end" font-family="'DM Mono', monospace">${formatDollar(Math.round(v))}</text>`;
+  });
 
-      {hover && (
-        <div style={{ position: "absolute", top: 8, right: 8, background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#e5e5e5", minWidth: 160, pointerEvents: "none" }}>
-          <div style={{ fontWeight: 700, marginBottom: 8, color: "#fff", fontSize: 13 }}>Year {hover.year}</div>
-          {scenarios.filter(function(s) { return activeScenarios.has(s.id); }).map(function(s) {
-            if (hover[s.id] === undefined) return null;
-            return (
-              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 4 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.color, display: "inline-block" }} />
-                  <span style={{ color: "#aaa", fontSize: 11 }}>{s.label}</span>
-                </span>
-                <span style={{ fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{formatDollar(hover[s.id])}</span>
-              </div>
-            );
-          })}
-          {showCustom && hover.custom !== undefined && (
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 4 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
-                <span style={{ color: "#aaa", fontSize: 11 }}>Custom</span>
-              </span>
-              <span style={{ fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>{formatDollar(hover.custom)}</span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  var xLabels = xTicks.map(function(yr) {
+    return html`<text key=${"x" + yr} x=${xPos(yr)} y=${H - 6} fill="#555" font-size="10" text-anchor="middle" font-family="'DM Mono', monospace">Yr ${yr}</text>`;
+  });
+
+  var hoverLine = hover ? html`<line x1=${xPos(hover.year)} x2=${xPos(hover.year)} y1=${pad.top} y2=${pad.top + plotH} stroke="#555" stroke-width="1" stroke-dasharray="3 3" />` : null;
+
+  var tooltipItems = hover ? scenarios.filter(function(s) { return activeScenarios.has(s.id); }).map(function(s) {
+    if (hover[s.id] === undefined) return null;
+    return html`<div key=${s.id} style=${{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 4 }}>
+      <span style=${{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style=${{ width: 7, height: 7, borderRadius: "50%", background: s.color, display: "inline-block" }} />
+        <span style=${{ color: "#aaa", fontSize: 11 }}>${s.label}</span>
+      </span>
+      <span style=${{ fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>${formatDollar(hover[s.id])}</span>
+    </div>`;
+  }) : null;
+
+  var customTooltip = hover && showCustom && hover.custom !== undefined ? html`<div style=${{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 4 }}>
+    <span style=${{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span style=${{ width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+      <span style=${{ color: "#aaa", fontSize: 11 }}>Custom</span>
+    </span>
+    <span style=${{ fontWeight: 600, fontFamily: "'DM Mono', monospace" }}>${formatDollar(hover.custom)}</span>
+  </div>` : null;
+
+  var tooltip = hover ? html`<div style=${{ position: "absolute", top: 8, right: 8, background: "#1a1a1a", border: "1px solid #333", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#e5e5e5", minWidth: 160, pointerEvents: "none" }}>
+    <div style=${{ fontWeight: 700, marginBottom: 8, color: "#fff", fontSize: 13 }}>Year ${hover.year}</div>
+    ${tooltipItems}
+    ${customTooltip}
+  </div>` : null;
+
+  return html`<div style=${{ position: "relative" }}>
+    <svg ref=${svgRef} viewBox=${"0 0 " + W + " " + H} style=${{ width: "100%", height: "auto", display: "block" }}
+      onMouseMove=${handleMove} onTouchMove=${handleMove}
+      onMouseLeave=${function() { setHover(null); }} onTouchEnd=${function() { setHover(null); }}>
+      ${gridLines}
+      ${refLine}
+      ${refLabel}
+      ${areaFills}
+      ${customArea}
+      ${lines}
+      ${customLine}
+      ${yLabels}
+      ${xLabels}
+      ${hoverLine}
+    </svg>
+    ${tooltip}
+  </div>`;
 }
 
 function FireScenarios() {
@@ -249,7 +258,7 @@ function FireScenarios() {
   var detailKey = showCustom ? "custom" : selectedDetail;
   var detailData = allData[detailKey] || allData["three"] || [];
   var detailScenario = showCustom
-    ? { label: "$" + (customMonthly / 1000).toFixed(0) + "k/mo \u00b7 " + customContribYears + "yr", color: "#f59e0b" }
+    ? { label: "$" + (customMonthly / 1000).toFixed(0) + "k/mo \xb7 " + customContribYears + "yr", color: "#f59e0b" }
     : scenarios.find(function(s) { return s.id === selectedDetail; }) || scenarios[0];
 
   function toggleScenario(id) {
@@ -266,160 +275,157 @@ function FireScenarios() {
 
   var cs = { card: "#161616", border: "#222", radius: 12 };
 
-  var sliders = [
+  var slidersConfig = [
     { label: "Starting Balance", val: startingBalance, display: formatDollar(startingBalance), min: 0, max: 2000000, step: 10000, set: setStartingBalance, parse: parseInt, hints: ["$0", "$1M", "$2M"] },
     { label: "Annual Return", val: annualReturn, display: annualReturn + "%", min: 4, max: 12, step: 0.5, set: setAnnualReturn, parse: parseFloat, hints: ["4% conservative", "7% hist avg", "12% aggressive"] },
-    { label: "Time Horizon", val: years, display: years + " years", min: 5, max: 30, step: 1, set: setYears, parse: parseInt, hints: ["5yr", "15yr", "30yr"] },
+    { label: "Time Horizon", val: years, display: years + " years", min: 5, max: 30, step: 1, set: setYears, parse: parseInt, hints: ["5yr", "15yr", "30yr"] }
   ];
 
-  return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0d0d0d", color: "#e5e5e5", minHeight: "100vh", padding: "40px 20px 60px" }}>
-      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+  var sliderEls = slidersConfig.map(function(sl) {
+    return html`<div key=${sl.label} style=${{ background: cs.card, borderRadius: cs.radius, padding: "16px 20px", marginBottom: 14, border: "1px solid " + cs.border }}>
+      <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style=${{ fontSize: 13, color: "#999" }}>${sl.label}</span>
+        <span style=${{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 600, color: "#fff" }}>${sl.display}</span>
+      </div>
+      <input type="range" min=${sl.min} max=${sl.max} step=${sl.step} value=${sl.val} onInput=${function(e) { sl.set(sl.parse(e.target.value)); }} />
+      <div style=${{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#555", marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+        ${sl.hints.map(function(h, idx) { return html`<span key=${idx}>${h}</span>`; })}
+      </div>
+    </div>`;
+  });
 
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", color: "#666", textTransform: "uppercase", marginBottom: 8, fontFamily: "'DM Mono', monospace" }}>Portfolio Forecast</div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "#fff", margin: 0 }}>FIRE Scenario Explorer</h1>
-          <p style={{ color: "#777", fontSize: 14, marginTop: 8 }}>
-            Starting: <span style={{ color: "#fff", fontWeight: 600 }}>{formatDollar(startingBalance)}</span>
-            {" \u00b7 "}<span style={{ color: "#fff", fontWeight: 600 }}>{annualReturn}%</span> return
-            {" \u00b7 "}<span style={{ color: "#fff", fontWeight: 600 }}>{years}</span> year horizon
-          </p>
-        </div>
+  var scenarioCards = scenarios.map(function(sc) {
+    var active = activeScenarios.has(sc.id);
+    var isDetail = selectedDetail === sc.id && !showCustom;
+    var fb = lastYearBal(sc.id);
+    return html`<button key=${sc.id} onClick=${function() { toggleScenario(sc.id); if (!showCustom) setSelectedDetail(sc.id); }}
+      style=${{ background: active ? "#1a1a1a" : "#111", border: "1px solid " + (isDetail ? sc.color : active ? "#333" : "#1a1a1a"), borderRadius: 10, padding: 14, cursor: "pointer", textAlign: "left", opacity: active ? 1 : 0.4 }}>
+      <div style=${{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style=${{ width: 10, height: 10, borderRadius: "50%", background: sc.color, display: "inline-block", flexShrink: 0 }} />
+        <span style=${{ fontSize: 11, color: "#aaa", fontWeight: 500 }}>${sc.label}</span>
+      </div>
+      <div style=${{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: "'DM Mono', monospace" }}>${formatDollar(fb)}</div>
+      <div style=${{ fontSize: 11, color: "#666", marginTop: 2 }}>yr ${years} \xb7 ${formatDollar(fb * 0.04)}/yr</div>
+    </button>`;
+  });
 
-        {sliders.map(function(sl) {
-          return (
-            <div key={sl.label} style={{ background: cs.card, borderRadius: cs.radius, padding: "16px 20px", marginBottom: 14, border: "1px solid " + cs.border }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <span style={{ fontSize: 13, color: "#999" }}>{sl.label}</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 16, fontWeight: 600, color: "#fff" }}>{sl.display}</span>
-              </div>
-              <input type="range" min={sl.min} max={sl.max} step={sl.step} value={sl.val} onChange={function(e) { sl.set(sl.parse(e.target.value)); }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#555", marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
-                {sl.hints.map(function(h, idx) { return <span key={idx}>{h}</span>; })}
-              </div>
-            </div>
-          );
-        })}
+  var customContent = showCustom ? html`<div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+    <div>
+      <div style=${{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style=${{ fontSize: 12, color: "#888" }}>Monthly</span>
+        <span style=${{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f59e0b" }}>$${customMonthly.toLocaleString()}</span>
+      </div>
+      <input type="range" min="0" max="25000" step="500" value=${customMonthly} onInput=${function(e) { setCustomMonthly(parseInt(e.target.value)); }} style=${{ accentColor: "#f59e0b" }} />
+    </div>
+    <div>
+      <div style=${{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style=${{ fontSize: 12, color: "#888" }}>Years</span>
+        <span style=${{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f59e0b" }}>${customContribYears}yr</span>
+      </div>
+      <input type="range" min="0" max=${years} step="1" value=${Math.min(customContribYears, years)} onInput=${function(e) { setCustomContribYears(parseInt(e.target.value)); }} style=${{ accentColor: "#f59e0b" }} />
+    </div>
+    ${allData.custom && allData.custom[years] ? html`<div style=${{ gridColumn: "1 / -1", paddingTop: 8, borderTop: "1px solid #282828" }}>
+      <span style=${{ fontSize: 13, color: "#888" }}>Yr ${years}: </span>
+      <span style=${{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: "#fff" }}>${formatDollar(allData.custom[years].balance)}</span>
+      <span style=${{ fontSize: 13, color: "#666", marginLeft: 12 }}>\u2192 ${formatDollar(allData.custom[years].balance * 0.04)}/yr</span>
+    </div>` : null}
+  </div>` : null;
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 18 }}>
-          {scenarios.map(function(sc) {
-            var active = activeScenarios.has(sc.id);
-            var isDetail = selectedDetail === sc.id && !showCustom;
-            var fb = lastYearBal(sc.id);
-            return (
-              <button key={sc.id} onClick={function() { toggleScenario(sc.id); if (!showCustom) setSelectedDetail(sc.id); }}
-                style={{ background: active ? "#1a1a1a" : "#111", border: "1px solid " + (isDetail ? sc.color : active ? "#333" : "#1a1a1a"),
-                  borderRadius: 10, padding: 14, cursor: "pointer", textAlign: "left", opacity: active ? 1 : 0.4 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: sc.color, display: "inline-block", flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, color: "#aaa", fontWeight: 500 }}>{sc.label}</span>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: "'DM Mono', monospace" }}>{formatDollar(fb)}</div>
-                <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>yr {years} {"\u00b7"} {formatDollar(fb * 0.04)}/yr</div>
-              </button>
-            );
-          })}
-        </div>
+  var tableRows = detailData.map(function(row, idx) {
+    return html`<tr key=${idx} style=${{ borderBottom: "1px solid #1a1a1a" }}>
+      <td style=${{ padding: "8px", textAlign: "right", color: "#888" }}>${row.year}</td>
+      <td style=${{ padding: "8px", textAlign: "right", color: "#fff", fontWeight: 600 }}>${formatDollar(row.balance)}</td>
+      <td style=${{ padding: "8px", textAlign: "right", color: "#4ade80" }}>${formatDollar(row.fourPctIncome)}</td>
+      <td style=${{ padding: "8px", textAlign: "right", color: "#4ade80" }}>${formatDollar(row.fourPctMonthly)}</td>
+      <td style=${{ padding: "8px", textAlign: "right", color: "#888" }}>${formatDollar(row.totalContributed)}</td>
+      <td style=${{ padding: "8px", textAlign: "right", color: row.gains >= 0 ? "#2563eb" : "#dc2626" }}>${formatDollar(row.gains)}</td>
+    </tr>`;
+  });
 
-        <div style={{ background: cs.card, borderRadius: cs.radius, border: "1px solid " + (showCustom ? "#f59e0b" : cs.border), padding: "16px 20px", marginBottom: 22 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showCustom ? 16 : 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Custom Scenario</span>
-            </div>
-            <button onClick={function() { setShowCustom(!showCustom); }}
-              style={{ background: showCustom ? "#f59e0b" : "#333", color: showCustom ? "#000" : "#aaa", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              {showCustom ? "ON" : "OFF"}
-            </button>
+  var refCards = [
+    { t: "$40k/yr", n: "$1.0M", m: "$3,333/mo" },
+    { t: "$48k/yr", n: "$1.2M", m: "$4,000/mo" },
+    { t: "$60k/yr", n: "$1.5M", m: "$5,000/mo" },
+    { t: "$80k/yr", n: "$2.0M", m: "$6,667/mo" }
+  ].map(function(r) {
+    return html`<div key=${r.t} style=${{ background: "#111", borderRadius: 8, padding: "12px 14px", textAlign: "center" }}>
+      <div style=${{ fontSize: 16, fontWeight: 700, color: "#4ade80" }}>${r.t}</div>
+      <div style=${{ fontSize: 12, color: "#888", marginTop: 2 }}>needs ${r.n}</div>
+      <div style=${{ fontSize: 11, color: "#555", marginTop: 2 }}>${r.m}</div>
+    </div>`;
+  });
+
+  return html`<div style=${{ fontFamily: "'DM Sans', sans-serif", background: "#0d0d0d", color: "#e5e5e5", minHeight: "100vh", padding: "40px 20px 60px" }}>
+    <div style=${{ maxWidth: 860, margin: "0 auto" }}>
+
+      <div style=${{ marginBottom: 32 }}>
+        <div style=${{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", color: "#666", textTransform: "uppercase", marginBottom: 8, fontFamily: "'DM Mono', monospace" }}>Portfolio Forecast</div>
+        <h1 style=${{ fontSize: 26, fontWeight: 700, color: "#fff", margin: 0 }}>FIRE Scenario Explorer</h1>
+        <p style=${{ color: "#777", fontSize: 14, marginTop: 8 }}>
+          Starting: <span style=${{ color: "#fff", fontWeight: 600 }}>${formatDollar(startingBalance)}</span>
+          ${" \xb7 "}<span style=${{ color: "#fff", fontWeight: 600 }}>${annualReturn}%</span> return
+          ${" \xb7 "}<span style=${{ color: "#fff", fontWeight: 600 }}>${years}</span> year horizon
+        </p>
+      </div>
+
+      ${sliderEls}
+
+      <div style=${{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 18 }}>
+        ${scenarioCards}
+      </div>
+
+      <div style=${{ background: cs.card, borderRadius: cs.radius, border: "1px solid " + (showCustom ? "#f59e0b" : cs.border), padding: "16px 20px", marginBottom: 22 }}>
+        <div style=${{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showCustom ? 16 : 0 }}>
+          <div style=${{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style=${{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+            <span style=${{ fontSize: 13, fontWeight: 600 }}>Custom Scenario</span>
           </div>
-          {showCustom && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: "#888" }}>Monthly</span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f59e0b" }}>${customMonthly.toLocaleString()}</span>
-                </div>
-                <input type="range" min={0} max={25000} step={500} value={customMonthly} onChange={function(e) { setCustomMonthly(parseInt(e.target.value)); }} style={{ accentColor: "#f59e0b" }} />
-              </div>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: "#888" }}>Years</span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 600, color: "#f59e0b" }}>{customContribYears}yr</span>
-                </div>
-                <input type="range" min={0} max={years} step={1} value={Math.min(customContribYears, years)} onChange={function(e) { setCustomContribYears(parseInt(e.target.value)); }} style={{ accentColor: "#f59e0b" }} />
-              </div>
-              {allData.custom && allData.custom[years] && (
-                <div style={{ gridColumn: "1 / -1", paddingTop: 8, borderTop: "1px solid #282828" }}>
-                  <span style={{ fontSize: 13, color: "#888" }}>Yr {years}: </span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: "#fff" }}>{formatDollar(allData.custom[years].balance)}</span>
-                  <span style={{ fontSize: 13, color: "#666", marginLeft: 12 }}>{"\u2192"} {formatDollar(allData.custom[years].balance * 0.04)}/yr</span>
-                </div>
-              )}
-            </div>
-          )}
+          <button onClick=${function() { setShowCustom(!showCustom); }}
+            style=${{ background: showCustom ? "#f59e0b" : "#333", color: showCustom ? "#000" : "#aaa", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            ${showCustom ? "ON" : "OFF"}
+          </button>
         </div>
+        ${customContent}
+      </div>
 
-        <div style={{ background: "#131313", borderRadius: 14, padding: "16px 12px", marginBottom: 22, border: "1px solid #1e1e1e" }}>
-          <SVGChart chartData={chartData} scenarios={scenarios} activeScenarios={activeScenarios} showCustom={showCustom} selectedDetail={selectedDetail} years={years} />
+      <div style=${{ background: "#131313", borderRadius: 14, padding: "16px 12px", marginBottom: 22, border: "1px solid #1e1e1e" }}>
+        <${SVGChart} chartData=${chartData} scenarios=${scenarios} activeScenarios=${activeScenarios} showCustom=${showCustom} selectedDetail=${selectedDetail} years=${years} />
+      </div>
+
+      <div style=${{ background: "#131313", borderRadius: 14, padding: 16, border: "1px solid #1e1e1e", marginBottom: 22 }}>
+        <div style=${{ fontSize: 13, fontWeight: 600, color: "#999", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style=${{ width: 8, height: 8, borderRadius: "50%", background: detailScenario.color }} />
+          ${detailScenario.label}
         </div>
-
-        <div style={{ background: "#131313", borderRadius: 14, padding: 16, border: "1px solid #1e1e1e", marginBottom: 22 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#999", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: detailScenario.color }} />
-            {detailScenario.label}
-          </div>
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'DM Mono', monospace", fontSize: 12, minWidth: 480 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #222" }}>
-                  {["Yr", "Balance", "4%/yr", "4%/mo", "In", "Growth"].map(function(h) {
-                    return <th key={h} style={{ padding: "8px 8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>{h}</th>;
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {detailData.map(function(row, idx) {
-                  return (
-                    <tr key={idx} style={{ borderBottom: "1px solid #1a1a1a" }}>
-                      <td style={{ padding: "8px", textAlign: "right", color: "#888" }}>{row.year}</td>
-                      <td style={{ padding: "8px", textAlign: "right", color: "#fff", fontWeight: 600 }}>{formatDollar(row.balance)}</td>
-                      <td style={{ padding: "8px", textAlign: "right", color: "#4ade80" }}>{formatDollar(row.fourPctIncome)}</td>
-                      <td style={{ padding: "8px", textAlign: "right", color: "#4ade80" }}>{formatDollar(row.fourPctMonthly)}</td>
-                      <td style={{ padding: "8px", textAlign: "right", color: "#888" }}>{formatDollar(row.totalContributed)}</td>
-                      <td style={{ padding: "8px", textAlign: "right", color: row.gains >= 0 ? "#2563eb" : "#dc2626" }}>{formatDollar(row.gains)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style={{ background: cs.card, borderRadius: cs.radius, padding: 16, border: "1px solid " + cs.border, marginBottom: 40 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", color: "#666", textTransform: "uppercase", marginBottom: 12, fontFamily: "'DM Mono', monospace" }}>4% Rule Reference</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-            {[
-              { t: "$40k/yr", n: "$1.0M", m: "$3,333/mo" },
-              { t: "$48k/yr", n: "$1.2M", m: "$4,000/mo" },
-              { t: "$60k/yr", n: "$1.5M", m: "$5,000/mo" },
-              { t: "$80k/yr", n: "$2.0M", m: "$6,667/mo" },
-            ].map(function(r) {
-              return (
-                <div key={r.t} style={{ background: "#111", borderRadius: 8, padding: "12px 14px", textAlign: "center" }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#4ade80" }}>{r.t}</div>
-                  <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>needs {r.n}</div>
-                  <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{r.m}</div>
-                </div>
-              );
-            })}
-          </div>
+        <div style=${{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+          <table style=${{ width: "100%", borderCollapse: "collapse", fontFamily: "'DM Mono', monospace", fontSize: 12, minWidth: 480 }}>
+            <thead>
+              <tr style=${{ borderBottom: "1px solid #222" }}>
+                <th style=${{ padding: "8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>Yr</th>
+                <th style=${{ padding: "8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>Balance</th>
+                <th style=${{ padding: "8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>4%/yr</th>
+                <th style=${{ padding: "8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>4%/mo</th>
+                <th style=${{ padding: "8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>In</th>
+                <th style=${{ padding: "8px", textAlign: "right", color: "#555", fontWeight: 500, fontSize: 10, textTransform: "uppercase" }}>Growth</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
         </div>
       </div>
+
+      <div style=${{ background: cs.card, borderRadius: cs.radius, padding: 16, border: "1px solid " + cs.border, marginBottom: 40 }}>
+        <div style=${{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", color: "#666", textTransform: "uppercase", marginBottom: 12, fontFamily: "'DM Mono', monospace" }}>4% Rule Reference</div>
+        <div style=${{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+          ${refCards}
+        </div>
+      </div>
+
     </div>
-  );
+  </div>`;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<FireScenarios />);
+ReactDOM.createRoot(document.getElementById("root")).render(html`<${FireScenarios} />`);
 </script>
 </body>
 </html>
